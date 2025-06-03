@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="16dp"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/gpsText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="GPS: —"
+        android:textSize="18sp" />
+
+    <TextView
+        android:id="@+id/azimuthText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Азимут: —"
+        android:textSize="18sp"
+        android:layout_marginTop="16dp" />
+
+    <EditText
+        android:id="@+id/distanceInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:hint="Дистанция до цели (м)"
+        android:inputType="number"
+        android:textColor="@android:color/black"
+        android:layout_marginTop="16dp" />
+
+
+    <Button
+        android:id="@+id/calcButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Рассчитать координату"
+        android:layout_marginTop="8dp" />
+
+    <TextView
+        android:id="@+id/targetCoords"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Координаты цели: —"
+        android:textSize="18sp"
+        android:layout_marginTop="16dp" />
+
+
+</LinearLayout>
