@@ -1,19 +1,20 @@
 package com.yaga.targetnav;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.location.Location;
-import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.location.LocationListener;
+import android.location.Location;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -26,7 +27,7 @@ public class MainActivity extends AppCompatActivity {
 
     private TextView gpsText, azimuthText, targetCoords;
     private EditText distanceInput;
-    private Button calcButton;
+    private Button calcButton, openCameraButton;
 
     private LocationManager locationManager;
     private SensorManager sensorManager;
@@ -51,25 +52,25 @@ public class MainActivity extends AppCompatActivity {
         targetCoords = findViewById(R.id.targetCoords);
         distanceInput = findViewById(R.id.distanceInput);
         calcButton = findViewById(R.id.calcButton);
+        openCameraButton = findViewById(R.id.openCameraButton); // 👈 Новая кнопка
 
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
 
+        // 📍 Разрешение на геолокацию
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
         } else {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 1, location -> {
-                currentLat = location.getLatitude();
-                currentLon = location.getLongitude();
-                gpsText.setText("Широта: " + currentLat + "\nДолгота: " + currentLon);
-            });
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 1, locationListener);
         }
 
+        // 📍 Датчики
         Sensor accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         Sensor magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
         sensorManager.registerListener(sensorListener, accelerometer, SensorManager.SENSOR_DELAY_UI);
         sensorManager.registerListener(sensorListener, magnetometer, SensorManager.SENSOR_DELAY_UI);
 
+        // 📌 Кнопка "Рассчитать координату"
         calcButton.setOnClickListener(v -> {
             String distStr = distanceInput.getText().toString();
             if (distStr.isEmpty()) {
@@ -94,7 +95,22 @@ public class MainActivity extends AppCompatActivity {
 
             targetCoords.setText("Координаты цели:\n" + targetLat + ", " + targetLon);
         });
+
+        // 🎯 Кнопка "Открыть прицел"
+        openCameraButton.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, CameraActivity.class);
+            startActivity(intent);
+        });
     }
+
+    private final LocationListener locationListener = new LocationListener() {
+        @Override
+        public void onLocationChanged(@NonNull Location location) {
+            currentLat = location.getLatitude();
+            currentLon = location.getLongitude();
+            gpsText.setText("Широта: " + currentLat + "\nДолгота: " + currentLon);
+        }
+    };
 
     private final SensorEventListener sensorListener = new SensorEventListener() {
         float[] gravity;
