@@ -24,6 +24,32 @@
         android:textSize="18sp"
         android:layout_marginTop="16dp" />
 
+    <!-- 🔽 Spinner: выбор типа цели -->
+    <Spinner
+        android:id="@+id/targetTypeSpinner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:prompt="@string/choose_target_type" />
+
+    <!-- 📏 Процент высоты цели на экране -->
+    <TextView
+        android:id="@+id/targetHeightPercentText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Высота цели на экране: 50%"
+        android:layout_marginTop="16dp"
+        android:textSize="16sp" />
+
+    <SeekBar
+        android:id="@+id/targetHeightSeekBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:max="100"
+        android:progress="50" />
+
+    <!-- 🧮 Старое ручное поле расстояния (временно оставим) -->
     <EditText
         android:id="@+id/distanceInput"
         android:layout_width="match_parent"
@@ -33,7 +59,6 @@
         android:inputType="number"
         android:textColor="@android:color/black"
         android:layout_marginTop="16dp" />
-
 
     <Button
         android:id="@+id/calcButton"
@@ -56,7 +81,5 @@
         android:layout_height="wrap_content"
         android:text="Открыть прицел"
         android:layout_marginTop="24dp" />
-
-
 
 </LinearLayout>

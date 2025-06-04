@@ -9,8 +9,11 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Spinner;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.location.LocationListener;
@@ -23,11 +26,18 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.graphics.Insets;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class MainActivity extends AppCompatActivity {
 
     private TextView gpsText, azimuthText, targetCoords;
     private EditText distanceInput;
     private Button calcButton, openCameraButton;
+
+    private Spinner targetTypeSpinner;
+    private SeekBar targetHeightSeekBar;
+    private TextView targetHeightPercentText;
 
     private LocationManager locationManager;
     private SensorManager sensorManager;
@@ -36,6 +46,13 @@ public class MainActivity extends AppCompatActivity {
     private double currentLat = 0;
     private double currentLon = 0;
     private double lastDistance = 0;
+
+    private final Map<String, Double> targetHeights = new HashMap<String, Double>() {{
+        put("Человек", 1.75);
+        put("Лёгкий транспорт", 2.5);
+        put("Бронетехника", 3.0);
+        put("Здание", 6.0);
+    }};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,12 +65,36 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
+        // Привязка элементов интерфейса
         gpsText = findViewById(R.id.gpsText);
         azimuthText = findViewById(R.id.azimuthText);
         targetCoords = findViewById(R.id.targetCoords);
         distanceInput = findViewById(R.id.distanceInput);
         calcButton = findViewById(R.id.calcButton);
         openCameraButton = findViewById(R.id.openCameraButton);
+        targetTypeSpinner = findViewById(R.id.targetTypeSpinner);
+        targetHeightSeekBar = findViewById(R.id.targetHeightSeekBar);
+        targetHeightPercentText = findViewById(R.id.targetHeightPercentText);
+
+        // 🔽 Установка адаптера для Spinner (тип цели)
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(
+                this,
+                R.array.target_types,
+                android.R.layout.simple_spinner_item
+        );
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        targetTypeSpinner.setAdapter(adapter);
+
+        // Слушатель ползунка высоты цели на экране
+        targetHeightSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                targetHeightPercentText.setText("Высота цели на экране: " + progress + "%");
+            }
+
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
 
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
@@ -71,17 +112,38 @@ public class MainActivity extends AppCompatActivity {
 
         // 📌 Кнопка "Рассчитать координату"
         calcButton.setOnClickListener(v -> {
-            String distStr = distanceInput.getText().toString();
-            if (distStr.isEmpty()) {
-                Toast.makeText(this, "Введите расстояние", Toast.LENGTH_SHORT).show();
+            Object selectedItem = targetTypeSpinner.getSelectedItem();
+            if (selectedItem == null) {
+                Toast.makeText(this, "Цель не выбрана", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            double distance = Double.parseDouble(distStr);
-            lastDistance = distance;
+            String selectedTarget = selectedItem.toString();
+            int percent = targetHeightSeekBar.getProgress();
 
+            if (!targetHeights.containsKey(selectedTarget)) {
+                Toast.makeText(this, "Неизвестный тип цели", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (percent < 5) {
+                Toast.makeText(this, "Цель слишком мала на экране. Увеличьте процент.", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            double targetRealHeight = targetHeights.get(selectedTarget);
+            double screenHeightPixels = getResources().getDisplayMetrics().heightPixels;
+            double objectHeightPixels = screenHeightPixels * (percent / 100.0);
+
+            double verticalFOV = Math.toRadians(60.0); // Типовое значение
+            double distance = targetRealHeight / (2 * Math.tan(verticalFOV / 2)) * (screenHeightPixels / objectHeightPixels);
+
+            lastDistance = distance;
+            distanceInput.setText(String.format("%.1f", distance));
+
+            // Расчёт координат
             double bearing = azimuth;
-            double R = 6371000.0; // радиус Земли в метрах
+            double R = 6371000.0;
             double φ1 = Math.toRadians(currentLat);
             double λ1 = Math.toRadians(currentLon);
             double θ = Math.toRadians(bearing);
@@ -99,17 +161,21 @@ public class MainActivity extends AppCompatActivity {
 
         // 🎯 Кнопка "Открыть прицел"
         openCameraButton.setOnClickListener(v -> {
-            String distStr = distanceInput.getText().toString();
+            String distStr = distanceInput.getText().toString().replace(',', '.');
             if (distStr.isEmpty()) {
                 Toast.makeText(this, "Введите дистанцию перед открытием камеры", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            double distance = Double.parseDouble(distStr);
-            Intent intent = new Intent(MainActivity.this, CameraActivity.class);
-            intent.putExtra("azimuth", azimuth);
-            intent.putExtra("distance", distance);
-            startActivity(intent);
+            try {
+                double distance = Double.parseDouble(distStr);
+                Intent intent = new Intent(MainActivity.this, CameraActivity.class);
+                intent.putExtra("azimuth", azimuth);
+                intent.putExtra("distance", distance);
+                startActivity(intent);
+            } catch (NumberFormatException e) {
+                Toast.makeText(this, "Неверный формат дистанции. Используйте, например: 100.0", Toast.LENGTH_LONG).show();
+            }
         });
     }
 
