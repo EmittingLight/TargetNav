@@ -10,6 +10,9 @@ import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.widget.ArrayAdapter;
+import android.widget.FrameLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -22,7 +25,10 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
     private SurfaceView surfaceView;
     private SurfaceHolder surfaceHolder;
     private Camera camera;
+
     private TextView coordsText;
+    private Spinner targetTypeSpinner;
+    private OverlayView overlayView;
 
     private float azimuth = 0f;
     private double distance = 0;
@@ -42,42 +48,71 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
 
         surfaceView = findViewById(R.id.surfaceView);
         coordsText = findViewById(R.id.coordsText);
-
+        targetTypeSpinner = findViewById(R.id.targetTypeSpinner);
+        overlayView = findViewById(R.id.overlayView); // теперь берём из XML
         azimuth = getIntent().getFloatExtra("azimuth", 0f);
+
+        // Установка адаптера для Spinner
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(
+                this,
+                R.array.target_types,
+                android.R.layout.simple_spinner_item
+        );
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        targetTypeSpinner.setAdapter(adapter);
 
         surfaceHolder = surfaceView.getHolder();
         surfaceHolder.addCallback(this);
 
-        // 👆 Обработка тапов
         surfaceView.setOnTouchListener((v, event) -> {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
                 float y = event.getY();
                 if (firstY == -1) {
                     firstY = y;
-                    Toast.makeText(this, "Коснись верхней части цели", Toast.LENGTH_SHORT).show();
+                    overlayView.clearTaps();
+                    overlayView.markTap(y);
+                    Toast.makeText(this, "👆 Коснись верхней части цели", Toast.LENGTH_SHORT).show();
                 } else {
                     float secondY = y;
+                    overlayView.markTap(secondY);
                     float heightPixels = Math.abs(secondY - firstY);
-                    firstY = -1; // сброс
+                    firstY = -1;
 
                     if (heightPixels < 10) {
-                        Toast.makeText(this, "Слишком маленькая высота", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "❗ Слишком маленькая высота", Toast.LENGTH_SHORT).show();
+                        overlayView.clearTaps();
                         return true;
                     }
 
-                    // Пример: считаем, что цель — человек 1.75 м
-                    double realHeight = 1.75;
-                    double screenHeight = getResources().getDisplayMetrics().heightPixels;
+                    Object selectedItem = targetTypeSpinner.getSelectedItem();
+                    if (selectedItem == null) {
+                        Toast.makeText(this, "❗ Пожалуйста, выберите тип цели", Toast.LENGTH_SHORT).show();
+                        overlayView.clearTaps();
+                        return true;
+                    }
 
+                    String type = selectedItem.toString();
+                    double realHeight = 1.75;
+                    if (type.equals("Автомобиль")) {
+                        realHeight = 1.5;
+                    } else if (type.equals("Танк")) {
+                        realHeight = 2.3;
+                    } else if (type.equals("Здание")) {
+                        realHeight = 10.0;
+                    }
+
+                    double screenHeight = getResources().getDisplayMetrics().heightPixels;
                     distance = realHeight / (2 * Math.tan(verticalFOV / 2)) * (screenHeight / heightPixels);
 
-                    // Вычисляем координаты цели
+                    Toast.makeText(this, "📏 Расстояние рассчитано: " + (int) distance + " м", Toast.LENGTH_SHORT).show();
+                    overlayView.updateData(azimuth, (float) distance);
                     calculateTargetCoordinates();
                 }
             }
             return true;
         });
 
+        // Запрос координат
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
@@ -101,7 +136,8 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
         double targetLat = Math.toDegrees(φ2);
         double targetLon = Math.toDegrees(λ2);
 
-        coordsText.setText(String.format("Цель на расстоянии %.1f м\nШирота: %.6f\nДолгота: %.6f", distance, targetLat, targetLon));
+        coordsText.setText(String.format("🎯 Цель: %.1f м\n📍Широта: %.6f\n📍Долгота: %.6f", distance, targetLat, targetLon));
+        Toast.makeText(this, "✅ Координаты цели получены", Toast.LENGTH_SHORT).show();
     }
 
     private final LocationListener locationListener = new LocationListener() {
@@ -116,14 +152,13 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
     public void surfaceCreated(@NonNull SurfaceHolder holder) {
         try {
             camera = Camera.open();
-            camera.setDisplayOrientation(90); // 🔧 добавь это!
+            camera.setDisplayOrientation(90);
             camera.setPreviewDisplay(holder);
             camera.startPreview();
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
-
 
     @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int format, int width, int height) {}
     @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {

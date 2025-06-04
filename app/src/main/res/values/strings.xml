@@ -1,5 +1,4 @@
 <resources>
     <string name="app_name">TargetNav</string>
     <string name="choose_target_type">Выберите тип цели</string>
-
 </resources>

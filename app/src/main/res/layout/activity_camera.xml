@@ -1,21 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- Камера -->
     <SurfaceView
         android:id="@+id/surfaceView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- Инфо о координатах -->
     <TextView
         android:id="@+id/coordsText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Ожидание..."
-        android:textColor="#FFFFFF"
-        android:background="#80000000"
-        android:padding="12dp"
-        android:layout_gravity="bottom|center_horizontal"
-        android:textSize="16sp" />
-</FrameLayout>
+        android:layout_margin="12dp"
+        android:background="#AA000000"
+        android:padding="8dp"
+        android:textColor="@android:color/white"
+        android:textSize="14sp"
+        android:layout_gravity="top|start"
+        android:text="Загрузка..." />
 
+    <!-- Выбор типа цели -->
+    <Spinner
+        android:id="@+id/targetTypeSpinner"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="12dp"
+        android:background="@android:drawable/btn_dropdown" />
+
+    <!-- Перекрестие, линии и наложения -->
+    <com.yaga.targetnav.OverlayView
+        android:id="@+id/overlayView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="false" />
+
+</FrameLayout>
