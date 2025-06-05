@@ -9,15 +9,10 @@ import android.view.View;
 
 public class OverlayView extends View {
 
-    private float azimuth = 0f;
-    private float distance = 0f;
-
     private Paint paintLine;
-    private Paint paintText;
     private Paint paintTap;
 
-    private Float tapY1 = null;
-    private Float tapY2 = null;
+    private Float tapY = null;
 
     public OverlayView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -32,31 +27,15 @@ public class OverlayView extends View {
         paintTap = new Paint();
         paintTap.setColor(Color.YELLOW);
         paintTap.setStrokeWidth(3f);
-
-        paintText = new Paint();
-        paintText.setColor(Color.WHITE);
-        paintText.setTextSize(42f);
-        paintText.setAntiAlias(true);
-    }
-
-    public void updateData(float azimuth, float distance) {
-        this.azimuth = azimuth;
-        this.distance = distance;
-        invalidate();
     }
 
     public void markTap(float y) {
-        if (tapY1 == null) {
-            tapY1 = y;
-        } else {
-            tapY2 = y;
-        }
+        tapY = y;
         invalidate();
     }
 
     public void clearTaps() {
-        tapY1 = null;
-        tapY2 = null;
+        tapY = null;
         invalidate();
     }
 
@@ -71,13 +50,9 @@ public class OverlayView extends View {
         canvas.drawLine(width / 2f - 50, height / 2f, width / 2f + 50, height / 2f, paintLine);
         canvas.drawLine(width / 2f, height / 2f - 50, width / 2f, height / 2f + 50, paintLine);
 
-        // 🟡 Линии касания
-        if (tapY1 != null) {
-            canvas.drawLine(0, tapY1, width, tapY1, paintTap);
-        }
-        if (tapY2 != null) {
-            canvas.drawLine(0, tapY2, width, tapY2, paintTap);
+        // 🟡 Линия касания
+        if (tapY != null) {
+            canvas.drawLine(0, tapY, width, tapY, paintTap);
         }
     }
-
 }

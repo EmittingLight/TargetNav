@@ -3,6 +3,10 @@ package com.yaga.targetnav;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.hardware.Camera;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -11,7 +15,6 @@ import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.widget.ArrayAdapter;
-import android.widget.FrameLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -37,9 +40,8 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
     private double currentLat = 0;
     private double currentLon = 0;
 
-    private float firstY = -1;
-
-    private final double verticalFOV = Math.toRadians(60.0); // поле зрения камеры
+    private SensorManager sensorManager;
+    private float pitch = 0f;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,10 +51,9 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
         surfaceView = findViewById(R.id.surfaceView);
         coordsText = findViewById(R.id.coordsText);
         targetTypeSpinner = findViewById(R.id.targetTypeSpinner);
-        overlayView = findViewById(R.id.overlayView); // теперь берём из XML
+        overlayView = findViewById(R.id.overlayView);
         azimuth = getIntent().getFloatExtra("azimuth", 0f);
 
-        // Установка адаптера для Spinner
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(
                 this,
                 R.array.target_types,
@@ -64,55 +65,60 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
         surfaceHolder = surfaceView.getHolder();
         surfaceHolder.addCallback(this);
 
+        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        Sensor rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+        if (rotationSensor != null) {
+            sensorManager.registerListener(rotationListener, rotationSensor, SensorManager.SENSOR_DELAY_UI);
+        }
+
         surfaceView.setOnTouchListener((v, event) -> {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                float y = event.getY();
-                if (firstY == -1) {
-                    firstY = y;
-                    overlayView.clearTaps();
-                    overlayView.markTap(y);
-                    Toast.makeText(this, "👆 Коснись верхней части цели", Toast.LENGTH_SHORT).show();
-                } else {
-                    float secondY = y;
-                    overlayView.markTap(secondY);
-                    float heightPixels = Math.abs(secondY - firstY);
-                    firstY = -1;
-
-                    if (heightPixels < 10) {
-                        Toast.makeText(this, "❗ Слишком маленькая высота", Toast.LENGTH_SHORT).show();
-                        overlayView.clearTaps();
-                        return true;
-                    }
-
-                    Object selectedItem = targetTypeSpinner.getSelectedItem();
-                    if (selectedItem == null) {
-                        Toast.makeText(this, "❗ Пожалуйста, выберите тип цели", Toast.LENGTH_SHORT).show();
-                        overlayView.clearTaps();
-                        return true;
-                    }
-
-                    String type = selectedItem.toString();
-                    double realHeight = 1.75;
-                    if (type.equals("Автомобиль")) {
-                        realHeight = 1.5;
-                    } else if (type.equals("Танк")) {
-                        realHeight = 2.3;
-                    } else if (type.equals("Здание")) {
-                        realHeight = 10.0;
-                    }
-
-                    double screenHeight = getResources().getDisplayMetrics().heightPixels;
-                    distance = realHeight / (2 * Math.tan(verticalFOV / 2)) * (screenHeight / heightPixels);
-
-                    Toast.makeText(this, "📏 Расстояние рассчитано: " + (int) distance + " м", Toast.LENGTH_SHORT).show();
-                    overlayView.updateData(azimuth, (float) distance);
-                    calculateTargetCoordinates();
+                Object selectedItem = targetTypeSpinner.getSelectedItem();
+                if (selectedItem == null) {
+                    Toast.makeText(this, "❗ Выберите тип цели", Toast.LENGTH_SHORT).show();
+                    return true;
                 }
+
+                if (currentLat == 0.0 && currentLon == 0.0) {
+                    Toast.makeText(this, "📡 Ожидание GPS", Toast.LENGTH_SHORT).show();
+                    return true;
+                }
+
+                String type = selectedItem.toString();
+                double realHeight;
+                switch (type) {
+                    case "Автомобиль": realHeight = 1.5; break;
+                    case "Танк":       realHeight = 2.3; break;
+                    case "Здание":     realHeight = 10.0; break;
+                    default:           realHeight = 1.75; break;
+                }
+
+                double screenHeight = surfaceView.getHeight();
+                double centerY = screenHeight / 2.0;
+                double tapY = event.getY();
+                double pixelHeight = Math.abs(centerY - tapY);
+
+                if (pixelHeight < 10) {
+                    Toast.makeText(this, "❗ Цель слишком мала на экране", Toast.LENGTH_SHORT).show();
+                    return true;
+                }
+
+                double verticalFOV = Math.toRadians(60.0); // стандартное значение для многих камер
+                distance = (realHeight * screenHeight) / (2.0 * pixelHeight * Math.tan(verticalFOV / 2.0));
+
+                Toast.makeText(this, "📏 Расстояние: " + (int) distance + " м", Toast.LENGTH_SHORT).show();
+
+                overlayView.clearTaps();
+                overlayView.markTap((float) tapY);
+
+
+                calculateTargetCoordinates();
             }
             return true;
         });
 
-        // Запрос координат
+
+
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
@@ -122,11 +128,12 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
     }
 
     private void calculateTargetCoordinates() {
-        double bearing = azimuth;
+        if (distance <= 0) return;
+
         double R = 6371000.0;
         double φ1 = Math.toRadians(currentLat);
         double λ1 = Math.toRadians(currentLon);
-        double θ = Math.toRadians(bearing);
+        double θ = Math.toRadians(azimuth);
         double δ = distance / R;
 
         double φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
@@ -136,9 +143,26 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
         double targetLat = Math.toDegrees(φ2);
         double targetLon = Math.toDegrees(λ2);
 
-        coordsText.setText(String.format("🎯 Цель: %.1f м\n📍Широта: %.6f\n📍Долгота: %.6f", distance, targetLat, targetLon));
+        coordsText.setText(String.format("🎯 Цель: %.1f м\n📍Широта: %.6f\n📍Долгота: %.6f",
+                distance, targetLat, targetLon));
         Toast.makeText(this, "✅ Координаты цели получены", Toast.LENGTH_SHORT).show();
     }
+
+    private final SensorEventListener rotationListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            if (event.sensor.getType() == Sensor.TYPE_ROTATION_VECTOR) {
+                float[] rotationMatrix = new float[9];
+                SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values);
+                float[] orientation = new float[3];
+                SensorManager.getOrientation(rotationMatrix, orientation);
+                pitch = (float) Math.toDegrees(orientation[1]);
+            }
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+    };
 
     private final LocationListener locationListener = new LocationListener() {
         @Override
@@ -166,5 +190,11 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
             camera.stopPreview();
             camera.release();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        sensorManager.unregisterListener(rotationListener);
     }
 }
